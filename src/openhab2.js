@@ -85,6 +85,7 @@ function onSynchronizeDevices() {
     var r = http.get("" + plugin.Settings["LocalUrl"] + "/rest/sitemaps/" + plugin.Settings["Sitemap"] );
     console.log("reading sitemap: " +  plugin.Settings["LocalUrl"] + "/rest/sitemaps/" + plugin.Settings["Sitemap"]);
     var json = r.data;
+    console.log(r);
     var allDevices = [];
     pushArray(allDevices, AddWidgetDevices(json.homepage.widgets))
     plugin.Devices = allDevices;
@@ -92,7 +93,9 @@ function onSynchronizeDevices() {
 }
 
 function AddWidgetDevices(widgets) {
-    for(var w in widgets) {
+    var allDevices = [];
+    for(var i in widgets) {
+        var w = widgets[i];
         switch (w.type) {
             case "Frame":
                 break;
@@ -142,9 +145,11 @@ function AddWidgetDevices(widgets) {
                 break;
         }
         if(w.hasOwnProperty("widgets")){
-            AddWidgetDevices(w.widgets);
+            console.log("loading widgets");
+            pushArray(allDevices, AddWidgetDevices(w.widgets))
         }
     }
+    return allDevices;
 }
 
 function jeedomPing() {
