@@ -1,0 +1,15 @@
+{
+  "name": "homeremote-openhab",
+  "version": "1.0.0",
+  "description": "Openhab plugin for HomeRemote (Node Test Project)",
+  "main": "run.js",
+  "dependencies": {
+    "sync-request": "^6.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "zeal",
+  "license": "ISC"
+}
