@@ -1,6 +1,7 @@
 // Our custom httpclient module
 require("./modules/HTTPClient.js")();
 require("./modules/Device.js")();
+
 var fs = require("fs");
 
 // Setup the plugin object
@@ -19,6 +20,7 @@ if (fs.existsSync('./settings.js')) {
 }
 
 console.log("Running sync test");
+plugin.OnConnect();
 plugin.OnSynchronizeDevices();
 
 console.log("List devices");

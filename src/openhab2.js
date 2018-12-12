@@ -1,3 +1,5 @@
+
+// PLUGIN SETUP
 plugin.OnChangeRequest = onChangeRequest;
 plugin.OnConnect = onConnect;
 plugin.OnDisconnect = onDisconnect;
@@ -7,89 +9,82 @@ plugin.PollingInterval = 1000;
 //IMPORTANT!  This is not the HostName used.  Value actually used is configured in "Properties" pane.     
 plugin.Settings = { "LocalUrl": "http://192.168.1.100:8080", "RemoteUrl": "https://myopenhab.org:443", "Username": "email@email.com", "Password" : "secret", "Sitemap" : "main"  };
 
-var http = new HTTPClient();
 
-function getDevice(id) {
-    for (var d in plugin.Devices) {
-        var device = plugin.Devices[d];
-        if (device.Id == id) {
-            return device;
-        }
-    }
-    return null;
+// GLOBAL VARIABLES
+
+var http = new HTTPClient();
+var URL = "";
+
+// DEBUGGING HELPERS
+
+var debug = {
+    log: function(m) { console.log((typeof m) === "string" ? m : "Warning: cannot show objects" ); if (typeof Debug === "undefined") debug.delay(1000);},
+    output: function(m) { if (typeof Debug !== "undefined") console.log(m); },
+    delay: function (delay) { var waitTill = new Date(new Date().getTime() + delay); while(waitTill > new Date()){} }
 }
 
 function onChangeRequest(device, attribute, value) {
-    var commandService;
-    var commandAction;
-    switch (attribute) {
-        case "Level":
-            commandService = "urn:upnp-org:serviceId:Dimming1";
-            commandAction = "SetLoadLevelTarget&newLoadlevelTarget=" + value;
-            break;
-        case "Switch":
-            commandService = "urn:upnp-org:serviceId:SwitchPower1";
-            commandAction = ((value == "On") ? "SetTarget&newTargetValue=1" : "SetTarget&newTargetValue=0");
-            break;
-        default:
-            return;
-    }
-    http.get("http://" + plugin.Settings["HostName"] + ":3480/data_request?id=lu_action&DeviceNum=" + device.Id + "&serviceId=" + commandService + "&action=" + commandAction);
+  
 }
 
-function onConnect() {
-}
 
 function onDisconnect() {
 }
 
 function onPoll() {
-    var options = {
-        timeout: -1,
-        params: {
-            id: "status",
-            output_format: "json",
-            MinimumDelay: 1000
-        }
-    };
-    var r = http.get("http://" + plugin.Settings["HostName"] + ":3480/data_request", options);
-    var json = r.data;
-    for (var d in json.devices) {
-        var deviceJson = json.devices[d];
-        var device = getDevice(deviceJson.id);
-        if (device != null) {
-            for (var s in deviceJson.states) {
-                var stateJson = deviceJson.states[s];
-                switch (stateJson.service) {
-                    case "urn:upnp-org:serviceId:SwitchPower1":
-                        if (stateJson.variable == "Status") {                        
-                            device.Switch = ((stateJson.value == "1") ? "On" : "Off");
-                        }
-                        break;
-                    case "urn:upnp-org:serviceId:Dimming1":
-                        if (stateJson.variable == "LoadLevelStatus") {
-                            device.Level = stateJson.value;
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-        }
-    }
+    
 }
 
-function onSynchronizeDevices() {
-    //jeedomPing();
-    //alert("test");
-    var r = http.get("" + plugin.Settings["LocalUrl"] + "/rest/sitemaps/" + plugin.Settings["Sitemap"] );
-    console.log("reading sitemap: " +  plugin.Settings["LocalUrl"] + "/rest/sitemaps/" + plugin.Settings["Sitemap"]);
+
+
+function onConnect() {
+
+    try {
+   	    debug.log("Testing Local Connection")
+        debug.log(plugin.Settings["LocalUrl"] + "/rest/uuid");
+        var options = { headers: { 'Authorization': "Basic " + "" } };  
+    	var t = http.get(plugin.Settings["LocalUrl"] + "/rest/uuid", options);
+         if (t.status == 200) {
+            debug.log("Connected Locally");
+            URL = plugin.Settings["LocalUrl"];
+    		return;
+        }   	
+    } catch (err) {
+        debug.log(err);
+        debug.log("Local Connection Failed.  Testing Cloud Connection.")
+
+        var options = { auth: {
+            username: plugin.Settings["Username"],
+            password: plugin.Settings["Password"]
+          }
+        };  
+    	var t = http.get(plugin.Settings["RemoteUrl"] + "/rest/uuid", options);
+    	if (t.status == 200) {
+            debug.log("Connected via Cloud");
+		    URL = plugin.Settings["RemoteUrl"];
+    		return;
+        }   	
+    } finally {
+        // FOR IN DESIGNER TESTING ONLY
+        if (URL !== "")
+            onSynchronizeDevices();
+    }
+    debug.log("Connection to OpenHab Failed")
+}
+
+
+function onSynchronizeDevices() {   
+    var options = { headers: { 'Authorization': "Basic " + "" } };
+    debug.log(URL + "/rest/sitemaps/" + plugin.Settings["Sitemap"]);
+    
+    var r = http.get(URL + "/rest/sitemaps/" + plugin.Settings["Sitemap"], options );
+  
+    debug.log("reading sitemap: " +  plugin.Settings["LocalUrl"] + "/rest/sitemaps/" + plugin.Settings["Sitemap"]);
+   
     var json = r.data;
-    console.log(r);
     var allDevices = [];
     pushArray(allDevices, AddWidgetDevices(json.homepage.widgets))
     plugin.Devices = allDevices;
-    console.log(plugin.Devices);
 }
 
 function AddWidgetDevices(widgets) {
@@ -117,8 +112,8 @@ function AddWidgetDevices(widgets) {
                         break;
                 }
 
-                        pluginDevice.Capabilities = ["Switch"];
-                        pluginDevice.Attributes = [];
+                pluginDevice.Capabilities = ["Switch"];
+                pluginDevice.Attributes = [];
                 allDevices.push(pluginDevice);
                 break;
             case "Switch":
@@ -145,35 +140,23 @@ function AddWidgetDevices(widgets) {
                 break;
         }
         if(w.hasOwnProperty("widgets")){
-            console.log("loading widgets");
             pushArray(allDevices, AddWidgetDevices(w.widgets))
         }
     }
     return allDevices;
 }
 
-function jeedomPing() {
-    var options = {
-        timeout: 1000
-    };
 
-    // Test for local URL
-    var r = http.get(plugin.Settings["LocalUrl"] + "/rest/uuid", options);
-        if (r.status == 200) {
-        console.log("LOCAL");
-        return;
-    }
+// UTILITY FUNCTIONS
 
-    // Test for remote URL
-    options = {
-        timeout: 10000
-    };
-    r = http.get(plugin.Settings["RemoteUrl"] + "/rest/uuid", options);
-    if (r.status == 200) {
-        console.log("REMOTE");
-        return;
+function getDevice(id) {
+    for (var d in plugin.Devices) {
+        var device = plugin.Devices[d];
+        if (device.Id == id) {
+            return device;
+        }
     }
-    console.log("Jeedom KO");
+    return null;
 }
 
 function pushArray(list, other) {
@@ -184,3 +167,4 @@ function pushArray(list, other) {
         list[start] = other[i];
     }
 }
+
